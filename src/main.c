@@ -1,0 +1,87 @@
+#include "fat32.h"
+#include "lexer.h"
+#include <string.h>
+
+typedef struct {
+    uint32_t cluster;
+    char *name;
+} Directory;
+
+typedef struct {
+    Directory *items;
+    size_t depth;
+} Path;
+
+static void up(Path *path) {
+    if (path->depth) free(path->items[--path->depth].name);
+}
+
+static void cd(const Volume *v, Path *path, uint32_t current, const char *name) {
+    if (!strcmp(name, ".")) return;
+    if (!strcmp(name, "..")) { up(path); return; }
+    Entry entry;
+    int found = scan_directory(v, current, name, &entry);
+    if (found < 0) {
+        fprintf(stderr, "cd: cannot read directory or invalid cluster\n");
+    } else if (!found) {
+        fprintf(stderr, "cd: %s: no such directory\n", name);
+    } else if (!entry.directory) {
+        fprintf(stderr, "cd: %s: not a directory\n", name);
+    } else {
+        char *copy = malloc(strlen(entry.name) + 1);
+        if (!copy) { perror("cd"); return; }
+        strcpy(copy, entry.name);
+        Directory *items = realloc(path->items, (path->depth + 1) * sizeof *items);
+        if (!items) { free(copy); perror("cd"); return; }
+        path->items = items;
+        items[path->depth++] = (Directory){entry.cluster, copy};
+    }
+}
+
+static void shell(const Volume *v, const char *image) {
+    Path path = {0};
+    for (;;) {
+        printf("%s/", image);
+        for (size_t i = 0; i < path.depth; i++) printf("%s/", path.items[i].name);
+        printf("> ");
+        fflush(stdout);
+        char *line = get_input();
+        if (!line) break;
+        tokenlist *tokens = get_tokens(line);
+        const char *cmd = tokens->size ? tokens->items[0] : "";
+        bool quit = false;
+        uint32_t current = path.depth ? path.items[path.depth - 1].cluster : v->root;
+        if (!strcmp(cmd, "cd")) {
+            if (tokens->size == 2) cd(v, &path, current, tokens->items[1]);
+            else fprintf(stderr, "Usage: cd DIRNAME\n");
+        } else if (!strcmp(cmd, "exit") || !strcmp(cmd, "info") || !strcmp(cmd, "ls")) {
+            if (tokens->size != 1) fprintf(stderr, "Usage: %s\n", cmd);
+            else if (!strcmp(cmd, "exit")) quit = true;
+            else if (!strcmp(cmd, "info")) print_info(v);
+            else {
+                puts(".");
+                puts("..");
+                if (scan_directory(v, current, NULL, NULL) < 0)
+                    fprintf(stderr, "ls: cannot read directory or invalid FAT chain\n");
+            }
+        } else if (*cmd) fprintf(stderr, "Unknown command: %s\n", cmd);
+        free_tokens(tokens);
+        free(line);
+        if (quit) break;
+    }
+    while (path.depth) up(&path);
+    free(path.items);
+}
+
+int main(int argc, char **argv) {
+    if (argc != 2) { fprintf(stderr, "Usage: %s FAT32_IMAGE\n", argv[0]); return 1; }
+    Volume volume = {.file = fopen(argv[1], "rb")};
+    if (!volume.file) { perror(argv[1]); return 1; }
+    bool ok = read_volume(&volume);
+    if (ok) {
+        const char *slash = strrchr(argv[1], '/');
+        shell(&volume, slash ? slash + 1 : argv[1]);
+    } else fprintf(stderr, "%s: invalid or truncated FAT32 volume\n", argv[1]);
+    fclose(volume.file);
+    return ok ? 0 : 1;
+}

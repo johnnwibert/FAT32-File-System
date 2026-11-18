@@ -1,32 +1,24 @@
-SRC := src
-OBJ := obj
-BIN := bin
-EXECUTABLE:= filesys
-
-SRCS := $(wildcard $(SRC)/*.c)
-OBJS := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
-INCS := -Iinclude/
-DIRS := $(OBJ)/ $(BIN)/
-EXEC := $(BIN)/$(EXECUTABLE)
-
 CC := gcc
-CFLAGS := -g -Wall -std=c99 $(INCS)
-LDFLAGS :=
+CPPFLAGS := -Iinclude
+CFLAGS := -g -Wall -Wextra -std=c99 -pedantic
+OBJS := $(patsubst src/%.c,obj/%.o,$(wildcard src/*.c))
 
-all: $(EXEC)
+all: filesys
 
-$(EXEC): $(OBJS)
-	$(CC) $(CFLAGS) $(OBJS) -o $(EXEC)
+filesys: $(OBJS)
+	$(CC) $(LDFLAGS) $^ -o $@
 
-$(OBJ)/%.o: $(SRC)/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
+obj/%.o: src/%.c | obj
+	$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -c $< -o $@
 
-run: $(EXEC)
-	$(EXEC)
+obj:
+	mkdir -p $@
+
+run: filesys
+	./filesys "$(IMAGE)"
 
 clean:
-	rm $(OBJ)/*.o $(EXEC)
+	rm -rf obj filesys
 
-$(shell mkdir -p $(DIRS))
-
-.PHONY: run clean all
+-include $(OBJS:.o=.d)
+.PHONY: all run clean

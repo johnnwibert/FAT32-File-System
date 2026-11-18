@@ -3,66 +3,47 @@
 #include <stdlib.h>
 #include <string.h>
 
-int main()
-{
-	while (1) {
-		printf("> ");
-
-		/* input contains the whole command
-		 * tokens contains substrings from input split by spaces
-		 */
-
-		char *input = get_input();
-		printf("whole input: %s\n", input);
-
-		tokenlist *tokens = get_tokens(input);
-		for (int i = 0; i < tokens->size; i++) {
-			printf("token %d: (%s)\n", i, tokens->items[i]);
-		}
-
-		free(input);
-		free_tokens(tokens);
-	}
-
-	return 0;
+static void *resize(void *ptr, size_t bytes) {
+    void *result = realloc(ptr, bytes);
+    if (!result) {
+        perror("lexer allocation");
+        exit(EXIT_FAILURE);
+    }
+    return result;
 }
 
 char *get_input(void) {
-	char *buffer = NULL;
-	int bufsize = 0;
-	char line[5];
-	while (fgets(line, 5, stdin) != NULL)
-	{
-		int addby = 0;
-		char *newln = strchr(line, '\n');
-		if (newln != NULL)
-			addby = newln - line;
-		else
-			addby = 5 - 1;
-		buffer = (char *)realloc(buffer, bufsize + addby);
-		memcpy(&buffer[bufsize], line, addby);
-		bufsize += addby;
-		if (newln != NULL)
-			break;
-	}
-	buffer = (char *)realloc(buffer, bufsize + 1);
-	buffer[bufsize] = 0;
-	return buffer;
+    size_t capacity = 64, used = 0;
+    char *line = resize(NULL, capacity);
+    int ch;
+    while ((ch = getchar()) != EOF && ch != '\n') {
+        if (used == capacity - 1) {
+            capacity *= 2;
+            line = resize(line, capacity);
+        }
+        line[used++] = (char)ch;
+    }
+    if (ch == EOF && used == 0) {
+        free(line);
+        return NULL;
+    }
+    line[used] = 0;
+    return line;
 }
 
 tokenlist *new_tokenlist(void) {
-	tokenlist *tokens = (tokenlist *)malloc(sizeof(tokenlist));
+	tokenlist *tokens = resize(NULL, sizeof(tokenlist));
 	tokens->size = 0;
-	tokens->items = (char **)malloc(sizeof(char *));
+	tokens->items = resize(NULL, sizeof(char *));
 	tokens->items[0] = NULL; /* make NULL terminated */
 	return tokens;
 }
 
 void add_token(tokenlist *tokens, char *item) {
-	int i = tokens->size;
+	size_t i = tokens->size;
 
-	tokens->items = (char **)realloc(tokens->items, (i + 2) * sizeof(char *));
-	tokens->items[i] = (char *)malloc(strlen(item) + 1);
+	tokens->items = resize(tokens->items, (i + 2) * sizeof(char *));
+	tokens->items[i] = resize(NULL, strlen(item) + 1);
 	tokens->items[i + 1] = NULL;
 	strcpy(tokens->items[i], item);
 
@@ -70,21 +51,21 @@ void add_token(tokenlist *tokens, char *item) {
 }
 
 tokenlist *get_tokens(char *input) {
-	char *buf = (char *)malloc(strlen(input) + 1);
+	char *buf = resize(NULL, strlen(input) + 1);
 	strcpy(buf, input);
 	tokenlist *tokens = new_tokenlist();
-	char *tok = strtok(buf, " ");
+	char *tok = strtok(buf, " \t\r\n");
 	while (tok != NULL)
 	{
 		add_token(tokens, tok);
-		tok = strtok(NULL, " ");
+		tok = strtok(NULL, " \t\r\n");
 	}
 	free(buf);
 	return tokens;
 }
 
 void free_tokens(tokenlist *tokens) {
-	for (int i = 0; i < tokens->size; i++)
+	for (size_t i = 0; i < tokens->size; i++)
 		free(tokens->items[i]);
 	free(tokens->items);
 	free(tokens);
