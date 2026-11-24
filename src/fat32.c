@@ -46,6 +46,9 @@ bool read_volume(Volume *v) {
     v->fat_entries = (uint64_t)fat_sectors * v->sector_bytes / 4;
     v->fat_offset = (reserved + (uint64_t)active * fat_sectors) * v->sector_bytes;
     v->data_offset = first_data * v->sector_bytes;
+    v->num_fats = fats;
+    v->first_fat = (uint64_t)reserved * v->sector_bytes;
+    v->fat_bytes = (uint64_t)fat_sectors * v->sector_bytes;
     return v->data_clusters <= 0x0fffffee && v->fat_entries >= (uint64_t)v->data_clusters + 2 &&
            valid_cluster(v, v->root);
 }
@@ -92,7 +95,7 @@ int scan_directory(const Volume *v, uint32_t start, const char *target, Entry *m
         for (size_t i = 0; i < bytes; i += 32) {
             unsigned char *p = buf + i;
             if (!p[0]) goto end_of_dir;
-            /* Skip deleted entries, long-name slots and volume labels. */
+            //Skip deleted entries, long-name slots and volume labels.
             if (p[0] == 0xe5 || (p[11] & 0x08)) continue;
             Entry e;
             short_name(p, e.name);

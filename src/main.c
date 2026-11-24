@@ -1,7 +1,8 @@
 #include "fat32.h"
 #include "lexer.h"
 #include <string.h>
-
+#include "create.h"
+#include "openfile.h" 
 typedef struct {
     uint32_t cluster;
     char *name;
@@ -37,6 +38,52 @@ static void cd(const Volume *v, Path *path, uint32_t current, const char *name) 
         items[path->depth++] = (Directory){entry.cluster, copy};
     }
 }
+
+//builds the current path like for lsof
+static void path_string(const Path *path, char *out, size_t size) {
+    strcpy(out, "/");
+    for (size_t i = 0; i < path->depth; i++) {
+        if (i > 0) strncat(out, "/", size - strlen(out) - 1);
+        strncat(out, path->items[i].name, size - strlen(out) - 1);
+    }
+}
+//Part 3 and 4 commands. Returns false if cmd isn't one of them
+static bool run_file_command(const Volume *v, const Path *path, uint32_t current,
+                             tokenlist *tokens) {
+    const char *cmd = tokens->items[0];
+    size_t n = tokens->size;
+
+    if (!strcmp(cmd, "mkdir")) {
+        if (n == 2) do_mkdir(v, current, tokens->items[1]);
+        else fprintf(stderr, "Usage: mkdir DIRNAME\n");
+    } else if (!strcmp(cmd, "creat")) {
+        if (n == 2) do_creat(v, current, tokens->items[1]);
+        else fprintf(stderr, "Usage: creat FILENAME\n");
+    } else if (!strcmp(cmd, "open")) {
+        if (n == 3) {
+            char dir_path[MAX_PATH_LEN];
+            path_string(path, dir_path, sizeof dir_path);
+            do_open(v, current, dir_path, tokens->items[1], tokens->items[2]);
+        } else fprintf(stderr, "Usage: open FILENAME FLAGS\n");
+    } else if (!strcmp(cmd, "close")) {
+        if (n == 2) do_close(v, current, tokens->items[1]);
+        else fprintf(stderr, "Usage: close FILENAME\n");
+    } else if (!strcmp(cmd, "lsof")) {
+        if (n == 1) do_lsof();
+        else fprintf(stderr, "Usage: lsof\n");
+    } else if (!strcmp(cmd, "lseek")) {
+        if (n == 3) do_lseek(v, current, tokens->items[1], tokens->items[2]);
+        else fprintf(stderr, "Usage: lseek FILENAME OFFSET\n");
+    } else if (!strcmp(cmd, "read")) {
+        if (n == 3) do_read(v, current, tokens->items[1], tokens->items[2]);
+        else fprintf(stderr, "Usage: read FILENAME SIZE\n");
+    } else {
+        return false;
+    }
+    return true;
+}
+
+
 
 static void shell(const Volume *v, const char *image) {
     Path path = {0};
