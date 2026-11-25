@@ -2,7 +2,10 @@
 #include "lexer.h"
 #include <string.h>
 #include "create.h"
-#include "openfile.h" 
+#include "openfile.h"
+#include "update.h"
+#include "delete.h"
+#include <stdlib.h>
 typedef struct {
     uint32_t cluster;
     char *name;
@@ -47,7 +50,7 @@ static void path_string(const Path *path, char *out, size_t size) {
         strncat(out, path->items[i].name, size - strlen(out) - 1);
     }
 }
-//Part 3 and 4 commands. Returns false if cmd isn't one of them
+//Parts 3, 4, 5, and 6 commands. Returns false if cmd isn't one of them
 static bool run_file_command(const Volume *v, const Path *path, uint32_t current,
                              tokenlist *tokens) {
     const char *cmd = tokens->items[0];
@@ -77,6 +80,26 @@ static bool run_file_command(const Volume *v, const Path *path, uint32_t current
     } else if (!strcmp(cmd, "read")) {
         if (n == 3) do_read(v, current, tokens->items[1], tokens->items[2]);
         else fprintf(stderr, "Usage: read FILENAME SIZE\n");
+    } else if (!strcmp(cmd, "write")) {
+        if (n == 3)
+            do_write(v, current, tokens->items[1], tokens->items[2]);
+        else
+            fprintf(stderr, "Usage: write FILENAME \"STRING\"\n");
+    } else if (!strcmp(cmd, "mv")) {
+        if (n == 3)
+            do_mv(v, current, tokens->items[1], tokens->items[2]);
+        else
+            fprintf(stderr, "Usage: mv SOURCE DESTINATION\n");
+    } else if (!strcmp(cmd, "rm")) {
+        if (n == 2)
+            do_rm(v, current, tokens->items[1]);
+        else
+            fprintf(stderr, "Usage: rm FILENAME\n");
+    } else if (!strcmp(cmd, "rmdir")) {
+        if (n == 2)
+            do_rmdir(v, current, tokens->items[1]);
+        else
+            fprintf(stderr, "Usage: rmdir DIRNAME\n");
     } else {
         return false;
     }
@@ -111,7 +134,10 @@ static void shell(const Volume *v, const char *image) {
                 if (scan_directory(v, current, NULL, NULL) < 0)
                     fprintf(stderr, "ls: cannot read directory or invalid FAT chain\n");
             }
-        } else if (*cmd) fprintf(stderr, "Unknown command: %s\n", cmd);
+        } else if (*cmd &&
+                !run_file_command(v, &path, current, tokens)) {
+            fprintf(stderr, "Unknown command: %s\n", cmd);
+        }
         free_tokens(tokens);
         free(line);
         if (quit) break;
@@ -122,7 +148,7 @@ static void shell(const Volume *v, const char *image) {
 
 int main(int argc, char **argv) {
     if (argc != 2) { fprintf(stderr, "Usage: %s FAT32_IMAGE\n", argv[0]); return 1; }
-    Volume volume = {.file = fopen(argv[1], "rb")};
+    Volume volume = {.file = fopen(argv[1], "r+b")};
     if (!volume.file) { perror(argv[1]); return 1; }
     bool ok = read_volume(&volume);
     if (ok) {

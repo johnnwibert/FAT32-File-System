@@ -1,0 +1,13 @@
+# FAT32 disk images and archives
+*.img
+*.img.tar.gz
+
+# Build artifacts
+obj/
+filesys
+
+# Local testing files
+test6.txt
+
+# macOS system files
+.DS_Store

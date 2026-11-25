@@ -198,3 +198,22 @@ bool add_entry(const Volume *v, uint32_t dir_cluster, const char *name,
         return false;
     return write_bytes(v, pos, raw, 32);
 }
+
+// helper functions to allow put16() and put32() to be accessed by new source files
+void set_entry_cluster(DirEntry *e, uint32_t cluster) {
+    put16(e->raw + 20, (cluster >> 16) & 0x0FFF);
+    put16(e->raw + 26, cluster & 0xFFFF);
+}
+
+void set_entry_size(DirEntry *e, uint32_t size) {
+    put32(e->raw + 28, size);
+}
+
+bool save_entry(const Volume *v, const DirEntry *e) {
+    return write_bytes(v, e->pos, e->raw, 32);
+}
+
+bool delete_entry(const Volume *v, const DirEntry *e) {
+    unsigned char deleted = 0xE5;
+    return write_bytes(v, e->pos, &deleted, 1);
+}

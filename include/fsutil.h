@@ -36,4 +36,9 @@ bool find_free_slot(const Volume *v, uint32_t dir_cluster, uint64_t *pos);
 bool add_entry(const Volume *v, uint32_t dir_cluster, const char *name,
                unsigned char attr, uint32_t first_cluster);
 
+void set_entry_cluster(DirEntry *e, uint32_t cluster);
+void set_entry_size(DirEntry *e, uint32_t size);
+bool save_entry(const Volume *v, const DirEntry *e);
+bool delete_entry(const Volume *v, const DirEntry *e);
+
 #endif
