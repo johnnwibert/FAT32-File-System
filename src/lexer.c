@@ -50,15 +50,51 @@ void add_token(tokenlist *tokens, char *item) {
 	tokens->size += 1;
 }
 
+// character-by-character quoted-string tokenizer
 tokenlist *get_tokens(char *input) {
 	char *buf = resize(NULL, strlen(input) + 1);
-	strcpy(buf, input);
 	tokenlist *tokens = new_tokenlist();
-	char *tok = strtok(buf, " \t\r\n");
-	while (tok != NULL)
+	size_t i = 0;
+	while (input[i] != '\0')
 	{
-		add_token(tokens, tok);
-		tok = strtok(NULL, " \t\r\n");
+		// skip whitespace between tokens
+		while (input[i] && strchr(" \t\r\n", input[i]))
+		{
+			i++;
+		}
+		if (input[i] == '\0')
+		{
+			break;
+		}
+		size_t used = 0;
+		if (input[i] == '"')
+		{
+			// skip opening quotation mark
+			i++;
+			while (input[i] != '"')
+			{
+				buf[used++] = input[i++];
+			}
+			if (input[i] != '"')
+			{
+				fprintf(stderr, "Unclosed quotation mark\n");
+				free(buf);
+				free_tokens(tokens);
+				return new_tokenlist();
+			}
+
+			// skip closing quotation mark
+			i++;
+		} else
+		{
+			// process normal unquoted token
+			while (input[i] &&
+					!strchr(" \t\r\n", input[i])) {
+				buf[used++] = input[i++];
+			}
+		}
+		buf[used] = '\0';
+		add_token(tokens, buf);
 	}
 	free(buf);
 	return tokens;
